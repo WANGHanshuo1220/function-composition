@@ -1,0 +1,8 @@
+boto3
+grpc
+grpc-tools
+Wand
+numpy
+tensorflow==2.12.0
+opencv-python
+Pillow
