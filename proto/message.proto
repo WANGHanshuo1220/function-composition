@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package FunctionComposotion;
+
+service NodeComm {
+    rpc FC_NodeComm(RequestInfo) returns (ReplyInfo) {}
+}
+
+message RequestInfo {
+    int32 step = 1;
+    bool finished = 2;
+    float exec_time = 3;
+}
+
+message ReplyInfo {
+    bool process = 1;
+    bool exit = 2;
+}
