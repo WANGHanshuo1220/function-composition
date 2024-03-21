@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import numpy as np
 from tensorflow.keras.models import load_model
@@ -14,7 +15,7 @@ STEP = 4
 
 bucket_name = "function-composition"
 preprocessed_object_key = "recognition/image1/preprocessed.jpg"
-img_download_path = "porn_dl.jpg"
+img_download_path = "preprocessed.jpg"
 model_object_key = "recognition/model.h5"
 model_download_path = "model.h5"
 json_illegal_path = "is_illegal.json"
@@ -22,18 +23,21 @@ illegal_object_key = "recognition/image1/illegal.json"
 
 s3_client = boto3.client('s3')
 
-def recognition():
-    try:
-        s3_client.download_file(bucket_name, preprocessed_object_key, img_download_path)
-        print("Image downloaded successfully from S3")
-    except Exception as e:
-        print(f"Error downloading image from S3: {e}")
+def recognition(local):
+    if not local:
+        try:
+            s3_client.download_file(bucket_name, preprocessed_object_key, img_download_path)
+            print("Image downloaded successfully from S3")
+        except Exception as e:
+            print(f"Error downloading image from S3: {e}")
 
-    try:
-        s3_client.download_file(bucket_name, model_object_key, model_download_path)
-        print("Model downloaded successfully from S3")
-    except Exception as e:
-        print(f"Error downloading model from S3: {e}")
+        try:
+            s3_client.download_file(bucket_name, model_object_key, model_download_path)
+            print("Model downloaded successfully from S3")
+        except Exception as e:
+            print(f"Error downloading model from S3: {e}")
+    else:
+        print("Get img and model from local")
 
     model = load_model(model_download_path)
     SIZE = (224, 224)
@@ -52,16 +56,20 @@ def recognition():
     with open(json_illegal_path, 'w') as json_file:
         json.dump(data, json_file)
 
-    try:
-        s3_client.upload_file(json_illegal_path, bucket_name, illegal_object_key)
-        print("Illegal json uploaded successfully to S3")
-    except Exception as e:
-        print(f"Error uploading illegal json to S3: {e}")
+    if not local:
+        try:
+            s3_client.upload_file(json_illegal_path, bucket_name, illegal_object_key)
+            print("Illegal json uploaded successfully to S3")
+        except Exception as e:
+            print(f"Error uploading illegal json to S3: {e}")
+    else:
+        print("Save iilegal json locally")
 
     return True
     
 if __name__ == "__main__":
-    channel = grpc.insecure_channel('localhost:50051')
+    host_ip = os.environ.get("FC_HOST_IP")
+    channel = grpc.insecure_channel(host_ip + ':50051')
     stub = pb2_grpc.NodeCommStub(channel)
     
     try:
@@ -70,10 +78,11 @@ if __name__ == "__main__":
                 response = stub.FC_NodeComm(pb2.RequestInfo(step=STEP, finished=False))
                 if response.process:
                     print("Received message from server:", response.process)
+                    local = response.local
 
                     # do the job
                     start_time = time.time()
-                    success = recognition()
+                    success = recognition(local)
                     end_time = time.time()
 
                     # send job finished to master

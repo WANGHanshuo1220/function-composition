@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rmessage.proto\x12\x13\x46unctionComposotion\"@\n\x0bRequestInfo\x12\x0c\n\x04step\x18\x01 \x01(\x05\x12\x10\n\x08\x66inished\x18\x02 \x01(\x08\x12\x11\n\texec_time\x18\x03 \x01(\x02\"*\n\tReplyInfo\x12\x0f\n\x07process\x18\x01 \x01(\x08\x12\x0c\n\x04\x65xit\x18\x02 \x01(\x08\x32]\n\x08NodeComm\x12Q\n\x0b\x46\x43_NodeComm\x12 .FunctionComposotion.RequestInfo\x1a\x1e.FunctionComposotion.ReplyInfo\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rmessage.proto\x12\x13\x46unctionComposotion\"@\n\x0bRequestInfo\x12\x0c\n\x04step\x18\x01 \x01(\x05\x12\x10\n\x08\x66inished\x18\x02 \x01(\x08\x12\x11\n\texec_time\x18\x03 \x01(\x02\"9\n\tReplyInfo\x12\x0f\n\x07process\x18\x01 \x01(\x08\x12\x0c\n\x04\x65xit\x18\x02 \x01(\x08\x12\r\n\x05local\x18\x03 \x01(\x08\x32]\n\x08NodeComm\x12Q\n\x0b\x46\x43_NodeComm\x12 .FunctionComposotion.RequestInfo\x1a\x1e.FunctionComposotion.ReplyInfo\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -24,7 +24,7 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_REQUESTINFO']._serialized_start=38
   _globals['_REQUESTINFO']._serialized_end=102
   _globals['_REPLYINFO']._serialized_start=104
-  _globals['_REPLYINFO']._serialized_end=146
-  _globals['_NODECOMM']._serialized_start=148
-  _globals['_NODECOMM']._serialized_end=241
+  _globals['_REPLYINFO']._serialized_end=161
+  _globals['_NODECOMM']._serialized_start=163
+  _globals['_NODECOMM']._serialized_end=256
 # @@protoc_insertion_point(module_scope)

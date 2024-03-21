@@ -22,7 +22,7 @@ class FC_NodeComm(pb2_grpc.NodeCommServicer):
         if request_step == self.next_step and not step_finished:
             print("recieve a request from step", request_step)
             process_ = True
-            return pb2.ReplyInfo(process=process_, exit=False)
+            return pb2.ReplyInfo(process=process_, exit=False, local=False)
         elif request_step == self.next_step and step_finished:
             print("recieve a finished request from step", request_step)
             self.perf.append(step_perf)

@@ -12,18 +12,21 @@ STEP = 5
 ENV_WORKDIR="/home/ubuntu/fc/"
 bucket_name = "function-composition"
 preprocessed_object_key = "recognition/image1/preprocessed.jpg"
-img_download_path = "porn_dl.jpg"
+img_download_path = "preprocessed.jpg"
 mosaic_path = "mosaiced.jpg"
 mosiac_object_key = "recognition/image1/mosiac.jpg"
 
 s3_client = boto3.client('s3')
 
-def mosaic():
-    try:
-        s3_client.download_file(bucket_name, preprocessed_object_key, img_download_path)
-        print("Image downloaded successfully from S3")
-    except Exception as e:
-        print(f"Error downloading image from S3: {e}")
+def mosaic(local):
+    if not local:
+        try:
+            s3_client.download_file(bucket_name, preprocessed_object_key, img_download_path)
+            print("Image downloaded successfully from S3")
+        except Exception as e:
+            print(f"Error downloading image from S3: {e}")
+    else:
+        print("Get img from local")
     
     img = cv2.imread(img_download_path, 1)
     img = cv2.resize(img, None, fx=0.1, fy=0.1)
@@ -39,16 +42,20 @@ def mosaic():
     
     cv2.imwrite(mosaic_path, img)
     
-    try:
-        s3_client.upload_file(mosaic_path, bucket_name, mosiac_object_key)
-        print("Mosaiced img uploaded successfully to S3")
-    except Exception as e:
-        print(f"Error uploading Mdata to S3: {e}")
+    if not local:
+        try:
+            s3_client.upload_file(mosaic_path, bucket_name, mosiac_object_key)
+            print("Mosaiced img uploaded successfully to S3")
+        except Exception as e:
+            print(f"Error uploading Mdata to S3: {e}")
+    else:
+        print("Save img locally")
 
     return True
 
 if __name__ == "__main__":
-    channel = grpc.insecure_channel('localhost:50051')
+    host_ip = os.environ.get("FC_HOST_IP")
+    channel = grpc.insecure_channel(host_ip + ':50051')
     stub = pb2_grpc.NodeCommStub(channel)
     
     try:
@@ -57,10 +64,11 @@ if __name__ == "__main__":
                 response = stub.FC_NodeComm(pb2.RequestInfo(step=STEP, finished=False))
                 if response.process:
                     print("Received message from server:", response.process)
+                    local = response.local
 
                     # do the job
                     start_time = time.time()
-                    success = mosaic()
+                    success = mosaic(local)
                     end_time = time.time()
 
                     # send job finished to master

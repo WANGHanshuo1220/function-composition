@@ -15,4 +15,5 @@ message RequestInfo {
 message ReplyInfo {
     bool process = 1;
     bool exit = 2;
+    bool local = 3;
 }
