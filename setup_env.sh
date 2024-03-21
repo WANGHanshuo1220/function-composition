@@ -15,3 +15,5 @@ touch ~/.aws/credentials
 echo "[default]" >> ~/.aws/credentials
 echo "aws_access_key_id = AKIATENRELP3YJPFMBFM" >> ~/.aws/credentials
 echo "aws_secret_access_key = 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" >> ~/.aws/credentials
+
+export FC_HOST_IP="172.31.44.66"
