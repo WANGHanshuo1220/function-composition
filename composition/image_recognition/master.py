@@ -29,9 +29,9 @@ class FC_NodeComm(pb2_grpc.NodeCommServicer):
             if self.next_step == self.total_steps:
                 total_time = 0.0
                 for step, perf in enumerate(self.perf):
-                    print(f"step {step+1} execution time = {perf:.5f}s")
+                    print(f"step {step+1} execution time = {perf:.8f}s")
                     total_time += perf
-                print(f"total exection time = {total_time:.5f}s")
+                print(f"total exection time = {total_time:.8f}s")
             else:
                 self.next_step += 1
             return pb2.ReplyInfo(exit=True)

@@ -3,17 +3,17 @@ sudo apt-get upgrade --yes
 sudo apt-get install python3-pip --yes
 sudp apt-get install imagemagick libmagickwand-dev --yes
 sudo apt-get install python3-opencv --yes
+sudo apt-get install protobuf-compiler --yes
 
 sudo pip install -r requirements.txt --yes
 
-mkdir ~/.aws
-touch ~/.aws/config
-echo "[default]" >> ~/.aws/config
-echo "region = ap-northeast-1" >> ~/.aws/config
+cd ~
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm awscliv2.zip
 
-touch ~/.aws/credentials
-echo "[default]" >> ~/.aws/credentials
-echo "aws_access_key_id = $AWS_ACCESS_KEY_ID >> ~/.aws/credentials
-echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+aws --version
+aws configure
 
-export FC_HOST_IP="172.31.44.66"
+export FC_HOST_IP="localhost"
