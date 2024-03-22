@@ -13,7 +13,7 @@ echo "region = ap-northeast-1" >> ~/.aws/config
 
 touch ~/.aws/credentials
 echo "[default]" >> ~/.aws/credentials
-echo "aws_access_key_id = AKIATENRELP3YJPFMBFM" >> ~/.aws/credentials
-echo "aws_secret_access_key = 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" >> ~/.aws/credentials
+echo "aws_access_key_id = $AWS_ACCESS_KEY_ID >> ~/.aws/credentials
+echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
 
 export FC_HOST_IP="172.31.44.66"
