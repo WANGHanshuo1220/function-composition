@@ -1,32 +1,37 @@
-import sys
 from imageai.Detection import ObjectDetection
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 import time
 import boto3
 from boto3.s3.transfer import TransferConfig
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageFile
+from PIL import Image, ImageFilter, ImageFile
 import zipfile
 import os
 import json
 import subprocess
 
+import grpc
+import message_pb2 as pb2
+import message_pb2_grpc as pb2_grpc
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class classify:
     def __init__(self, video_type, worker_id) -> None:
+        self.step = 3
+
+        self.video_type = video_type
+        self.worker_id = worker_id
+
         self.s3_client = boto3.client('s3')
         self.s3_bucket_name = "function-composition"
         self.s3_frame_key = "video/" + video_type + "/frames/"
         self.s3_mdata_key = "video/" + video_type + "/mdata.json"
-        self.s3_model_key = "video/yolo-tiny.h5"
+        self.s3_model_key = "video/yolov3.pt"
         self.s3_detection_key = "video/" + video_type + "/frame_detection/"
     
         self.local_mdata_path = "/tmp/mdata.json"
-        self.local_model_path = "/tmp/model.h5"
+        self.local_model_path = "/tmp/model.pt"
         self.local_worker_dir = "/tmp/" + "worker_" + str(self.worker_id)
-
-        self.video_type = video_type
-        self.worker_id = worker_id
 
         self.clean_all()
 
@@ -38,17 +43,29 @@ class classify:
         
     def clean_s3(self):
         try:
-            bucket = boto3.resource('s3').Bucket(self.s3_bucket_name)
-            for obj in bucket.objects.filter(Prefix = self.s3_detection_key):
-                obj.delete()
-        except:
+            response = self.s3_client.list_objects_v2(Bucket = self.s3_bucket_name,
+                                                            Prefix = self.s3_detection_key)
+            if 'Contents' in response:
+                files_in_folder = response["Contents"]
+                files_to_delete = []
+                # We will create Key array to pass to delete_objects function
+                for f in files_in_folder:
+                    files_to_delete.append({"Key": f["Key"]})
+
+                # This will delete all files in a folder
+                self.s3_client.delete_objects(
+                    Bucket = self.s3_bucket_name, Delete={"Objects": files_to_delete}
+                )
+        except Exception as e:
+            print("Clean S3 error with", e)
             pass
 
 
     def clean_local(self):
         try:
             with open('/dev/null', 'w') as devnull:
-                subprocess.call('rm /tmp/frame_* /tmp/mdata.json', 
+                subprocess.call('rm -r /tmp/frame_* /tmp/mdata.json '
+                                '/tmp/worker_* /tmp/detected_*', 
                                 shell = True,
                                 stdout = devnull,
                                 stderr = devnull)
@@ -65,29 +82,29 @@ class classify:
 
  
     def detect_object(self, frame_num, detect_prob):
-        if not os.path.exists(self.local_worker_dir):
-            os.mkdir(self.local_worker_dir)
-
         frame_base_path = self.local_worker_dir + "/frame_" + str(frame_num)
+
+        if not os.path.exists(frame_base_path):
+            os.makedirs(frame_base_path)
     
-        input_frame = frame_base_path + "/org_frame_" + str(frame_num) + ".jpg"
+        input_frame = frame_base_path + "/org.jpg"
         config = TransferConfig(use_threads = True)
         frame_key = self.s3_frame_key + "frame_" + str(frame_num) + ".jpg"
 
-        f = open(input_frame, "wb")
+        f = open(input_frame, "wb+")
         self.s3_client.download_fileobj(self.s3_bucket_name, 
                                         frame_key, f, 
                                         Config = config)
         f.close()
  
-        f = open(self.local_model_path, "wb")
+        f = open(self.local_model_path, "wb+")
         self.s3_client.download_fileobj(self.s3_bucket_name, 
                                         self.s3_model_key, 
                                         f, Config = config)
         f.close()
 
         detector = ObjectDetection()
-        detector.setModelTypeAsTinyYOLOv3()
+        detector.setModelTypeAsYOLOv3()
         detector.setModelPath(self.local_model_path)
         detector.loadModel()
     
@@ -98,13 +115,10 @@ class classify:
             output_image_path = output_path, 
             minimum_percentage_probability = detect_prob)
          
-        for box in range(len(detection)):
-            print(detection[box])
-         
         if len(detection) > 10 :
             original_image = Image.open(input_frame, mode = 'r')
             ths = []
-            threads = 4
+            threads = 1
             start_index = 0
             step_size = int(len(detection) / threads) + 1
            
@@ -152,12 +166,8 @@ class classify:
                            "_" + ".jpg"
                 im_resized_sharpened.save(fileName)
     
-        # print(len(detection))
-    
 
     def classify(self):
-        start_time = int(round(time.time() * 1000))
-        
         # Download json file from s3 
         self.s3_client.download_file(self.s3_bucket_name, 
                                      self.s3_mdata_key,
@@ -168,8 +178,7 @@ class classify:
             json_data = json.load(file)
         frame_num = json_data["indeces"][self.worker_id]['values']
         detect_prob = json_data["indeces"][self.worker_id]['detect_prob']
-        print(frame_num)
-    
+
         ths = []
         num_threads = len(frame_num)
         for w in range(num_threads):
@@ -181,13 +190,43 @@ class classify:
             ths[t].start()
         for t in range(num_threads):
             ths[t].join()
-    
-        end_time = time.time() * 1000
-        diff_time = str( end_time  - start_time )
-        print("duration: " + diff_time )
-        # return { 'duration': diff_time, 'values': str(event['values']) }
-    
+        
+        return True
 
-if __name__ == "__main__":
-    c = classify("small", 6)
-    c.classify()
+    def run(self):
+        host_ip = os.environ.get("FC_HOST_IP")
+        channel = grpc.insecure_channel(str(host_ip) + ':50051')
+        stub = pb2_grpc.NodeCommStub(channel)
+
+        try:
+            while True:
+                try:
+                    response = stub.FC_NodeComm(pb2.RequestInfo(step = self.step, 
+                                                                finished = False))
+                    if response.process:
+                        print("Received message from server:", response.process)
+                        local = response.local
+
+                        # do the job
+                        start_time = time.time()
+                        success = self.classify()
+                        end_time = time.time()
+
+                        # send job finished to master
+                        res = stub.FC_NodeComm(pb2.RequestInfo(
+                            step = self.step, 
+                            finished = success, 
+                            exec_time = end_time-start_time
+                            ))
+
+                        if res.exit:
+                            self.clean_local()
+                            return
+
+                except Exception as e:
+                    # print("An error occured: ", e)
+                    continue
+
+        except KeyboardInterrupt:
+            exit(0)
+

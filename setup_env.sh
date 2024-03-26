@@ -4,6 +4,7 @@ sudo apt-get install python3-pip --yes
 sudp apt-get install imagemagick libmagickwand-dev --yes
 sudo apt-get install python3-opencv --yes
 sudo apt-get install protobuf-compiler --yes
+sudo apt-get install python3-tk --yes
 
 sudo pip install -r requirements.txt --yes
 

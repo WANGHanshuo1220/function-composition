@@ -10,7 +10,7 @@ from concurrent import futures
 
 class FC_NodeComm(pb2_grpc.NodeCommServicer):
     def __init__(self) -> None:
-        self.total_steps = 5
+        self.total_steps = 3
         self.next_step = 1
         self.perf = []
 
@@ -36,18 +36,29 @@ class FC_NodeComm(pb2_grpc.NodeCommServicer):
                 self.next_step += 1
             return pb2.ReplyInfo(exit=True)
 
-def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
-    pb2_grpc.add_NodeCommServicer_to_server(FC_NodeComm(), server)
-    server.add_insecure_port('[::]:50051')
-    server.start()
-    print("Server started")
+class server:
+    def __init__(self) -> None:
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+        pb2_grpc.add_NodeCommServicer_to_server(FC_NodeComm(), self.server)
+        self.server.add_insecure_port('[::]:50051')
 
-    try:
-        while 1:
-            time.sleep(10)
-    except KeyboardInterrupt:
-        server.stop(0)
+
+    def stop(self):
+        self.server.stop(0)
+        print("Server stopped")
+
+    
+    def run(self):
+        self.server.start()
+        print("Server started")
+
+        try:
+            while 1:
+                time.sleep(10)
+        except KeyboardInterrupt:
+            self.stop()
+
 
 if __name__ == "__main__":
-    serve()
+    master = server()
+    master.run()

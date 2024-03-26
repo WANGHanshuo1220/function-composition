@@ -6,6 +6,11 @@ from boto3.s3.transfer import TransferConfig
 import subprocess
 import re
 import time
+import signal
+
+import grpc
+import message_pb2 as pb2
+import message_pb2_grpc as pb2_grpc
 
 FFMPEG_STATIC = "var/ffmpeg"
 
@@ -14,6 +19,8 @@ re_length = re.compile(length_regexp)
 
 class split:
     def __init__(self, video_type, parallel, prob) -> None:
+        self.step = 1
+
         self.s3_client = boto3.client('s3')
         self.s3_bucket_name = "function-composition"
         self.s3_source_key = "video/"+ video_type + "/video.mp4"
@@ -39,9 +46,22 @@ class split:
             self.s3_client.delete_object(Bucket = self.s3_bucket_name, 
                                          Key    = self.s3_mdata_key)
 
-            bucket = boto3.resource('s3').Bucket(self.s3_bucket_name)
-            for obj in bucket.objects.filter(Prefix = self.s3_chunk_key):
-                obj.delete()
+            try:
+                response = self.s3_client.list_objects_v2(Bucket = self.s3_bucket_name,
+                                                                Prefix = self.s3_chunk_key)
+            except Exception as e:
+                print("Delete error with", e)
+
+            files_in_folder = response["Contents"]
+            files_to_delete = []
+            # We will create Key array to pass to delete_objects function
+            for f in files_in_folder:
+                files_to_delete.append({"Key": f["Key"]})
+
+            # This will delete all files in a folder
+            response = self.s3_client.delete_objects(
+                Bucket = self.s3_bucket_name, Delete={"Objects": files_to_delete}
+            )
         except:
             pass
 
@@ -64,15 +84,17 @@ class split:
                                         f, Config=config)
         f.close()
 
-        output = subprocess.Popen("ffmpeg" + " -i '" + self.local_video_path + "' 2>&1 | grep 'Duration'",
+        process = subprocess.Popen("ffmpeg" + " -i '" + self.local_video_path + "' 2>&1 | grep 'Duration'",
                                   shell = True,
-                                  stdout = subprocess.PIPE
-                                  ).stdout.read().decode("utf-8")
-        # print(output)
+                                  stdout = subprocess.PIPE,
+                                  stderr = subprocess.PIPE
+                                  )
+        output, _ = process.communicate()
+        output = output.decode("utf-8")
         matches = re_length.search(output)
 
         # Number of splits
-        count=0
+        count = 0
         millis_list=[]
 
         if matches:
@@ -82,7 +104,7 @@ class split:
             print("Video length in seconds: " + str(video_length))
 
             start = 0
-            chunk_size = 2 # in seconds
+            chunk_size = 6 # in seconds
             while (start < video_length):
                 end = min(video_length - start,chunk_size)
                 millis = int(round(time.time() * 1000))
@@ -90,7 +112,7 @@ class split:
                 chunk_video_name = "chunk_" + str(count) + '.mp4'
                 with open('/dev/null', 'w') as devnull:
                     try:
-                        subprocess.call([FFMPEG_STATIC, 
+                        subprocess.call(["ffmpeg", 
                                         '-i', self.local_video_path, 
                                         '-ss', str(start) , 
                                         '-t', str(end),
@@ -140,9 +162,42 @@ class split:
                                    self.s3_mdata_key)
 
         return True
+    
+    
+    def run(self):
+        host_ip = os.environ.get("FC_HOST_IP")
+        channel = grpc.insecure_channel(str(host_ip) + ':50051')
+        stub = pb2_grpc.NodeCommStub(channel)
 
+        try:
+            while True:
+                try:
+                    response = stub.FC_NodeComm(pb2.RequestInfo(step = self.step, 
+                                                                finished = False))
+                    if response.process:
+                        print("Received message from server:", response.process)
+                        local = response.local
 
-if __name__ == "__main__":
-    s = split("small", 10, 2)
-    s.split()
-    s.clean_local()
+                        # do the job
+                        start_time = time.time()
+                        success = self.split()
+                        end_time = time.time()
+
+                        # send job finished to master
+                        res = stub.FC_NodeComm(pb2.RequestInfo(
+                            step = self.step, 
+                            finished = success, 
+                            exec_time = end_time-start_time
+                            ))
+
+                        if res.exit:
+                            self.clean_local()
+                            return
+
+                except Exception as e:
+                    # print("An error occured: ", e)
+                    continue
+
+        except KeyboardInterrupt:
+            exit(0)
+

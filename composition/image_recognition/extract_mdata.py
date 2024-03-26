@@ -66,19 +66,19 @@ class extarct:
                         local = response.local
 
                         # do the job
-                    start_time = time.time()
-                    success = self.extract(local)
-                    end_time = time.time()
+                        start_time = time.time()
+                        success = self.extract(local)
+                        end_time = time.time()
 
-                    # send job finished to master
-                    res = stub.FC_NodeComm(pb2.RequestInfo(
-                        step=self.step, 
-                        finished=success, 
-                        exec_time=end_time-start_time
-                        ))
+                        # send job finished to master
+                        res = stub.FC_NodeComm(pb2.RequestInfo(
+                            step=self.step, 
+                            finished=success, 
+                            exec_time=end_time-start_time
+                            ))
 
-                    if res.exit:
-                        return
+                        if res.exit:
+                            return
 
                 except Exception as e:
                     print("An error occured: ", e)
