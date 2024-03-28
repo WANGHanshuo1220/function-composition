@@ -14,8 +14,8 @@ class NodeCommStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.FC_NodeComm = channel.unary_unary(
-                '/FunctionComposotion.NodeComm/FC_NodeComm',
+        self.Func_Exec = channel.unary_unary(
+                '/FunctionComposotion.NodeComm/Func_Exec',
                 request_serializer=message__pb2.RequestInfo.SerializeToString,
                 response_deserializer=message__pb2.ReplyInfo.FromString,
                 )
@@ -24,8 +24,9 @@ class NodeCommStub(object):
 class NodeCommServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def FC_NodeComm(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def Func_Exec(self, request, context):
+        """rpc FC_NodeComm(RequestInfo) returns (ReplyInfo) {}
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -33,8 +34,8 @@ class NodeCommServicer(object):
 
 def add_NodeCommServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'FC_NodeComm': grpc.unary_unary_rpc_method_handler(
-                    servicer.FC_NodeComm,
+            'Func_Exec': grpc.unary_unary_rpc_method_handler(
+                    servicer.Func_Exec,
                     request_deserializer=message__pb2.RequestInfo.FromString,
                     response_serializer=message__pb2.ReplyInfo.SerializeToString,
             ),
@@ -49,7 +50,7 @@ class NodeComm(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def FC_NodeComm(request,
+    def Func_Exec(request,
             target,
             options=(),
             channel_credentials=None,
@@ -59,7 +60,7 @@ class NodeComm(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/FunctionComposotion.NodeComm/FC_NodeComm',
+        return grpc.experimental.unary_unary(request, target, '/FunctionComposotion.NodeComm/Func_Exec',
             message__pb2.RequestInfo.SerializeToString,
             message__pb2.ReplyInfo.FromString,
             options, channel_credentials,

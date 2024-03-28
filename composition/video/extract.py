@@ -17,10 +17,11 @@ FFMPEG_STATIC = "var/ffmpeg"
 
 
 class extract:
-    def __init__(self, video_type, worker_id) -> None:
+    def __init__(self, video_type, worker_id, s3_client) -> None:
         self.step = 2
 
-        self.s3_client = boto3.client('s3')
+        # self.s3_client = boto3.client('s3')
+        self.s3_client = s3_client
         self.s3_bucket_name = "function-composition"
         self.s3_chunk_key = "video/" + video_type + "/chunks/"
         self.s3_frame_key = "video/" + video_type + "/frames/"
@@ -29,16 +30,18 @@ class extract:
         self.local_mdata_path = "/tmp/mdata.json"
         self.video_type = video_type
         self.worker_id = worker_id
+
+        self.s3_UpOrDownload_time = 0.0
         
-        self.clean_all()
+        self.Clean_all()
 
 
-    def clean_all(self):
-        self.clean_s3()
-        self.clean_local()
+    def Clean_all(self):
+        self.Clean_s3()
+        self.Clean_local()
 
         
-    def clean_s3(self):
+    def Clean_s3(self):
         try:
             try:
                 response = self.s3_client.list_objects_v2(Bucket = self.s3_bucket_name,
@@ -60,7 +63,7 @@ class extract:
             pass
 
 
-    def clean_local(self):
+    def Clean_local(self):
         try:
             with open('/dev/null', 'w') as devnull:
                 subprocess.call('rm /tmp/*.mp4 /tmp/frame_* /tmp/mdata.json', 
@@ -70,14 +73,21 @@ class extract:
         except:
             pass
  
+        
+    def Get_s3_time(self):
+        return self.s3_UpOrDownload_time
+
     
-    def extract(self):
+    def Extract(self):
         config = TransferConfig(use_threads=True)
 
         # Download json file from s3 
+        start_time = time.time()
         self.s3_client.download_file(self.s3_bucket_name, 
                                      self.s3_mdata_key,
                                      self.local_mdata_path)
+        end_time = time.time()
+        self.s3_UpOrDownload_time += (end_time - start_time)
     
         # Extract json file
         with open(self.local_mdata_path, 'r') as file:
@@ -93,11 +103,14 @@ class extract:
             filename = "/tmp/chunk_" + str(record) + ".mp4"
             video_name = "chunk_" + str(record) + ".mp4"
 
-            f = open(filename, "wb")
-            self.s3_client.download_fileobj(self.s3_bucket_name, 
-                                            self.s3_chunk_key + video_name,
-                                            f, Config = config)
-            f.close()
+            # Download video chunk from s3
+            with open(filename, "wb") as f:
+                start_time = time.time()
+                self.s3_client.download_fileobj(self.s3_bucket_name, 
+                                                self.s3_chunk_key + video_name,
+                                                f, Config = config)
+                end_time = time.time()
+                self.s3_UpOrDownload_time += (end_time - start_time)
 
             millis = int(round(time.time() * 1000))
             extract_millis.append(millis)
@@ -118,52 +131,26 @@ class extract:
                     print("Extract subprocess error")
 
             try:
+                start_time = time.time()
                 self.s3_client.upload_file("/tmp/" + frame_name, 
                                            self.s3_bucket_name, 
                                            self.s3_frame_key + frame_name, 
                                            Config=config)
+                end_time = time.time()
+                self.s3_UpOrDownload_time += (end_time - start_time)
             except:
                 print("Upload video frame after extract failure!")
                 
-        print("Done!") 
-
         return True
 
 
-    def run(self):
-        host_ip = os.environ.get("FC_HOST_IP")
-        channel = grpc.insecure_channel(str(host_ip) + ':50051')
-        stub = pb2_grpc.NodeCommStub(channel)
+def Run_extract(worker_id, parallel, s3_client, return_dict):
+    e = extract("small", worker_id, s3_client)
 
-        try:
-            while True:
-                try:
-                    response = stub.FC_NodeComm(pb2.RequestInfo(step = self.step, 
-                                                                finished = False))
-                    if response.process:
-                        print("Received message from server:", response.process)
-                        local = response.local
+    start_time = time.time()
+    e.Extract()
+    end_time = time.time()
+    total_exec_time = end_time - start_time
 
-                        # do the job
-                        start_time = time.time()
-                        success = self.extract()
-                        end_time = time.time()
-
-                        # send job finished to master
-                        res = stub.FC_NodeComm(pb2.RequestInfo(
-                            step = self.step, 
-                            finished = success, 
-                            exec_time = end_time-start_time
-                            ))
-
-                        if res.exit:
-                            self.clean_local()
-                            return
-
-                except Exception as e:
-                    # print("An error occured: ", e)
-                    continue
-
-        except KeyboardInterrupt:
-            exit(0)
-
+    return_dict.append(total_exec_time-e.Get_s3_time())
+    return_dict.append(e.Get_s3_time())

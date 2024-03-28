@@ -37,10 +37,15 @@ if __name__ == "__main__":
         for step_worker in steps[step]:
             ths.append(Process(target = step_worker.run))
 
+    start_time = time.time()
     for t in range(len(ths)):
         ths[t].start()
     for t in range(len(ths)):
         ths[t].join()
+    end_time = time.time()
+
+    exec_time = end_time - start_time
+    print(f"total execution time = {exec_time:.8f}s")
 
     # total_time = 0.0
     # for index, time_ in enumerate(times):
