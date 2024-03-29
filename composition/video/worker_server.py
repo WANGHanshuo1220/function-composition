@@ -53,6 +53,8 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
 
     def Func_Exec(self, request, context):
         request_step = request.step
+        # print("==============================================================")
+        # print(f"Recieve step {request_step} at time {time.time()}")
         DAG_name = request.DAG_name
         if request_step == 0:
             parallel = 1
@@ -66,19 +68,20 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
         success = True
         reply = pb2.ReplyInfo()
         try:
-            s1 = time.time()
             ths = []
             manager = multiprocessing.Manager()
             return_dicts = [manager.list() for _ in range(parallel)]
+            s1 = time.time()
             for th in range(parallel):
                 ths.append(Process(
                     target = function,
                     args = (th, request.parallel, self.s3_client, return_dicts[th], )
                 ))
             s2 = time.time()
-            cap = s2 - s1
-            print(f"Step {request_step} prepare time = {cap:.8f} s")
-
+            if s2-s1 > 0.5:
+                print(f"Step {request_step}, Parallel {request.parallel}: "
+                      f"prepare time = {(s2-s1):.4f}s")
+            
             s1 = time.time()
             for t in range(len(ths)):
                 ths[t].start()
@@ -86,7 +89,7 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
                 ths[t].join()
             s2 = time.time()
             cap = s2 - s1
-            print(f"Step {request_step} exec time = {cap:.8f} s")
+            reply.cap = cap
 
             for worker_id, return_dict in enumerate(return_dicts):
                 worker = reply.workers_perf.add()
@@ -96,7 +99,7 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
                 
 
         except Exception as e:
-            print(f"DAG {DAG_name} step {request_step} execution error with:\n{e}")
+            # print(f"DAG {DAG_name} step {request_step} execution error with:\n{e}")
             success = False
 
         reply.success = success
@@ -114,7 +117,6 @@ class worker_server:
     def Stop(self):
         self.server.stop(2)
         print("Server stopped successfully")
-        time.sleep(3)
 
     
     def Run(self):

@@ -36,7 +36,8 @@ class classify:
 
         self.s3_UpOrDownload_time = 0.0
 
-        self.Clean_all()
+        # self.Clean_all()
+        self.Clean_local()
 
 
     def Clean_all(self):
@@ -87,27 +88,37 @@ class classify:
             os.makedirs(frame_base_path)
     
         input_frame = frame_base_path + "/org.jpg"
-        config = TransferConfig(use_threads = True)
+        config = TransferConfig(use_threads=False)
         frame_key = self.s3_frame_key + "frame_" + str(frame_num) + ".jpg"
 
         # download frames from s3
+        start_time = time.time()
         with open(input_frame, "wb+") as f:
-            start_time = time.time()
-            self.s3_client.download_fileobj(self.s3_bucket_name, 
-                                            frame_key, f, 
-                                            Config = config)
-            end_time = time.time()
-            self.s3_UpOrDownload_time += (end_time - start_time)
+            try:
+                self.s3_client.download_fileobj(self.s3_bucket_name, 
+                                                frame_key, f, 
+                                                Config = config)
+            except:
+                return
+        end_time = time.time()
+        self.s3_UpOrDownload_time += (end_time - start_time)
  
         # download model from s3 if not local (cold start)
         if not os.path.exists(self.local_model_path):
-            with open(self.local_model_path, "wb+") as f:
-                start_time = time.time()
-                self.s3_client.download_fileobj(self.s3_bucket_name, 
-                                                self.s3_model_key, 
-                                                f, Config = config)
-                end_time = time.time()
-                self.s3_UpOrDownload_time += (end_time - start_time)
+            start_time = time.time()
+
+            while True:
+                with open(self.local_model_path, "wb+") as f:
+                    try:
+                        self.s3_client.download_fileobj(self.s3_bucket_name, 
+                                                        self.s3_model_key, 
+                                                        f, Config = config)
+                        break
+                    except:
+                        pass
+
+            end_time = time.time()
+            self.s3_UpOrDownload_time += (end_time - start_time)
 
         s1 = time.time()
         detector = ObjectDetection()
@@ -200,23 +211,28 @@ class classify:
         # Extract json file
         with open(self.local_mdata_path, 'r') as file:
             json_data = json.load(file)
-        frame_num = json_data["indeces"][self.worker_id]['values']
+        frame_list = json_data["indeces"][self.worker_id]['values']
         detect_prob = json_data["indeces"][self.worker_id]['detect_prob']
 
-        ths = []
-        num_threads = len(frame_num)
-        for w in range(num_threads):
-            ths.append(Process(target = self.Detect_object, 
-                               args = (frame_num[w], detect_prob)))
+        for frame_num in frame_list:
+            self.Detect_object(frame_num, detect_prob)
+
+        # ths = []
+        # num_threads = len(frame_num)
+        # print(num_threads)
+        # for w in range(num_threads):
+        #     ths.append(Process(target = self.Detect_object, 
+        #                        args = (frame_num[w], detect_prob)))
     
-        for t in range(num_threads):
-            ths[t].start()
-        for t in range(num_threads):
-            ths[t].join()
+        # for t in range(num_threads):
+        #     ths[t].start()
+        # for t in range(num_threads):
+        #     ths[t].join()
         
         return True
 
 def Run_classify(worker_id, parallel, s3_client, return_dict):
+    # print(f"Exec classify worker {worker_id} at time {time.time()}")
     c = classify("small", worker_id, s3_client)
 
     start_time = time.time()
@@ -226,3 +242,5 @@ def Run_classify(worker_id, parallel, s3_client, return_dict):
 
     return_dict.append(total_exec_time-c.Get_s3_time())
     return_dict.append(c.Get_s3_time())
+
+    # print(f"Finished classify worker {worker_id} at time {time.time()}")

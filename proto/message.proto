@@ -16,6 +16,7 @@ message RequestInfo {
 message ReplyInfo {
     bool success = 1;
     repeated WorkerPerf workers_perf = 2;
+    float cap = 3;
 }
 
 message WorkerPerf {

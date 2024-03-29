@@ -7,6 +7,7 @@ import subprocess
 import re
 import time
 import signal
+import math
 
 import grpc
 import message_pb2 as pb2
@@ -35,7 +36,8 @@ class split:
 
         self.s3_UpOrDownload_time = 0.0
 
-        self.Clean_all()
+        # self.Clean_all()
+        self.Clean_local()
 
     
     def Clean_all(self):
@@ -114,7 +116,8 @@ class split:
             start = 0
             chunk_size = 2 # in seconds
             while (start < video_length):
-                end = min(video_length - start,chunk_size)
+                # end = min(video_length - start,chunk_size)
+                end = min(start + chunk_size, video_length)
                 millis = int(round(time.time() * 1000))
                 millis_list.append(millis)
                 chunk_video_name = "chunk_" + str(count) + '.mp4'
@@ -127,16 +130,21 @@ class split:
                                         '-c', 'copy', '/tmp/' + chunk_video_name],
                                         stdout = devnull,
                                         stderr = devnull)
-                    except:
-                        print("Split subprocess error")
+                    except Exception as e:
+                        print(f"Split subprocess error {e}")
 
                 count = count + 1
                 start = start + chunk_size
                 start_time = time.time()
-                self.s3_client.upload_file("/tmp/" + chunk_video_name, 
-                                           self.s3_bucket_name, 
-                                           self.s3_chunk_key + chunk_video_name, 
-                                           Config = config)
+                try:
+                    self.s3_client.upload_file("/tmp/" + chunk_video_name, 
+                                               self.s3_bucket_name, 
+                                               self.s3_chunk_key + chunk_video_name, 
+                                               Config = config)
+                    # print(f"Split upload {chunk_video_name} success")
+                except Exception as e:
+                    print(f"Split upload {chunk_video_name} error with {e}")
+                    break
                 end_time = time.time()
                 self.s3_UpOrDownload_time += (end_time - start_time)
 
@@ -154,8 +162,8 @@ class split:
             if len(currentList) == payload or i == count-1:
                tempDic = {}
                tempDic['values'] = currentList
-               tempDic['source_id'] = self.video_type
-               tempDic['millis'] = currentMillis
+            #    tempDic['source_id'] = self.video_type
+            #    tempDic['millis'] = currentMillis
                tempDic['detect_prob'] = 2
                listOfDics.append(tempDic)
                currentList = []
@@ -164,11 +172,11 @@ class split:
         vedio_split_info = {
             "indeces": listOfDics 
         }
-        # print(vedio_split_info)
+        # print(f"mdata.json: {vedio_split_info}")
 
         with open(self.local_json_path, 'w') as json_file:
             json.dump(vedio_split_info, json_file, indent = 4)
-        
+
         start_time = time.time()
         self.s3_client.upload_file(self.local_json_path, 
                                    self.s3_bucket_name, 
@@ -176,10 +184,13 @@ class split:
         end_time = time.time()
         self.s3_UpOrDownload_time += (end_time - start_time)
 
+        # print("Upload mdata.json done")
+
         return True
     
     
 def Run_split(worker_id, parallel, s3_client, return_dict):
+    # print(f"Exec split at time {time.time()}")
     s = split("small", parallel, s3_client)
 
     start_time = time.time()
@@ -190,3 +201,4 @@ def Run_split(worker_id, parallel, s3_client, return_dict):
     return_dict.append(total_exec_time-s.Get_s3_time())
     return_dict.append(s.Get_s3_time())
     
+    # print(f"Finished split at time {time.time()}")

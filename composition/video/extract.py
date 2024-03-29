@@ -33,7 +33,8 @@ class extract:
 
         self.s3_UpOrDownload_time = 0.0
         
-        self.Clean_all()
+        # self.Clean_all()
+        self.Clean_local()
 
 
     def Clean_all(self):
@@ -79,13 +80,16 @@ class extract:
 
     
     def Extract(self):
-        config = TransferConfig(use_threads=True)
+        config = TransferConfig(use_threads=False)
 
         # Download json file from s3 
         start_time = time.time()
-        self.s3_client.download_file(self.s3_bucket_name, 
-                                     self.s3_mdata_key,
-                                     self.local_mdata_path)
+        try:
+            self.s3_client.download_file(self.s3_bucket_name, 
+                                         self.s3_mdata_key,
+                                         self.local_mdata_path)
+        except:
+            return
         end_time = time.time()
         self.s3_UpOrDownload_time += (end_time - start_time)
     
@@ -106,9 +110,14 @@ class extract:
             # Download video chunk from s3
             with open(filename, "wb") as f:
                 start_time = time.time()
-                self.s3_client.download_fileobj(self.s3_bucket_name, 
-                                                self.s3_chunk_key + video_name,
-                                                f, Config = config)
+                try:
+                    self.s3_client.download_fileobj(self.s3_bucket_name, 
+                                                    self.s3_chunk_key + video_name,
+                                                    f, Config = config)
+                    # print(f"Extract download {video_name} success")
+                except Exception as e:
+                    print(f"Extract download {video_name} error with {e}")
+                    break
                 end_time = time.time()
                 self.s3_UpOrDownload_time += (end_time - start_time)
 
@@ -130,21 +139,19 @@ class extract:
                 except:
                     print("Extract subprocess error")
 
-            try:
-                start_time = time.time()
-                self.s3_client.upload_file("/tmp/" + frame_name, 
-                                           self.s3_bucket_name, 
-                                           self.s3_frame_key + frame_name, 
-                                           Config=config)
-                end_time = time.time()
-                self.s3_UpOrDownload_time += (end_time - start_time)
-            except:
-                print("Upload video frame after extract failure!")
+            start_time = time.time()
+            self.s3_client.upload_file("/tmp/" + frame_name, 
+                                       self.s3_bucket_name, 
+                                       self.s3_frame_key + frame_name, 
+                                       Config=config)
+            end_time = time.time()
+            self.s3_UpOrDownload_time += (end_time - start_time)
                 
         return True
 
 
 def Run_extract(worker_id, parallel, s3_client, return_dict):
+    # print(f"Exec extract worker {worker_id} at time {time.time()}")
     e = extract("small", worker_id, s3_client)
 
     start_time = time.time()
@@ -154,3 +161,5 @@ def Run_extract(worker_id, parallel, s3_client, return_dict):
 
     return_dict.append(total_exec_time-e.Get_s3_time())
     return_dict.append(e.Get_s3_time())
+
+    # print(f"Finished extract worker {worker_id} at time {time.time()}")
