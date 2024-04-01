@@ -6,6 +6,7 @@ sudo apt-get install python3-opencv --yes
 sudo apt-get install protobuf-compiler --yes
 sudo apt-get install python3-tk --yes
 sudo apt-get install unzip --yes
+sudo apt-get install ffmpeg --yes
 
 pip install -r requirements.txt
 

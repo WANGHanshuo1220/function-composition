@@ -16,7 +16,7 @@ class DAG_repo:
     def __init__(self) -> None:
         self.DAGs = {
             "video":{
-                "steps": 3
+                "steps": 1
             }
         }
 
@@ -187,8 +187,8 @@ if __name__ == "__main__":
     Clean_local()
     Clean_s3(video_type)
 
-    parallels = [1, 2, 3, 6]
-    # parallels = [1]
+    # parallels = [1, 2, 3, 6]
+    parallels = [1]
 
     for parallel in parallels:
         ms = master_server()
