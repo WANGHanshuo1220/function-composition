@@ -5,8 +5,9 @@ sudp apt-get install imagemagick libmagickwand-dev --yes
 sudo apt-get install python3-opencv --yes
 sudo apt-get install protobuf-compiler --yes
 sudo apt-get install python3-tk --yes
+sudo apt-get install unzip --yes
 
-sudo pip install -r requirements.txt --yes
+pip install -r requirements.txt
 
 cd ~
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
