@@ -54,7 +54,7 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
     def Func_Exec(self, request, context):
         request_step = request.step
         # print("==============================================================")
-        # print(f"Recieve step {request_step} at time {time.time()}")
+        print(f"Recieve step {request_step}")
         DAG_name = request.DAG_name
         if request_step == 0:
             parallel = 1
@@ -77,12 +77,7 @@ class Func_Exec(pb2_grpc.NodeCommServicer):
                     target = function,
                     args = (th, request.parallel, self.s3_client, return_dicts[th], )
                 ))
-            s2 = time.time()
-            if s2-s1 > 0.5:
-                print(f"Step {request_step}, Parallel {request.parallel}: "
-                      f"prepare time = {(s2-s1):.4f}s")
-            
-            s1 = time.time()
+
             for t in range(len(ths)):
                 ths[t].start()
             for t in range(len(ths)):

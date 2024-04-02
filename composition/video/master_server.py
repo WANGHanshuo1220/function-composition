@@ -16,7 +16,9 @@ class DAG_repo:
     def __init__(self) -> None:
         self.DAGs = {
             "video":{
-                "steps": 1
+                "steps": 3,
+                # "ips": ["localhost", '172.31.42.173', '172.31.42.173']
+                "ips": ["localhost", 'localhost', 'localhost']
             }
         }
 
@@ -81,10 +83,13 @@ class master_server:
         # print(f"DAG name = {DAG_name}, DAG info = {dag}")
 
         for step in range(dag["steps"]):
+            host_ip = dag["ips"][step]
+            channel = grpc.insecure_channel(str(host_ip) + ':50051')
+            stub = pb2_grpc.NodeCommStub(channel)
             try:
                 while True:
                     # print(f"Send step {step} at time {time.time()}")
-                    response = self.stub.Func_Exec(pb2.RequestInfo(step = step,
+                    response = stub.Func_Exec(pb2.RequestInfo(step = step,
                                                                    DAG_name = DAG_name,
                                                                    parallel = parallel))
                     if response.success == True:
@@ -187,8 +192,8 @@ if __name__ == "__main__":
     Clean_local()
     Clean_s3(video_type)
 
-    # parallels = [1, 2, 3, 6]
-    parallels = [1]
+    parallels = [1, 2, 3, 5, 6]
+    # parallels = [1]
 
     for parallel in parallels:
         ms = master_server()

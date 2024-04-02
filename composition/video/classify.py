@@ -81,7 +81,7 @@ class classify:
         return self.s3_UpOrDownload_time
 
  
-    def Detect_object(self, frame_num, detect_prob):
+    def Detect_object(self, frame_num, detect_prob, detector):
         frame_base_path = self.local_worker_dir + "/frame_" + str(frame_num)
 
         if not os.path.exists(frame_base_path):
@@ -102,45 +102,20 @@ class classify:
                 return
         end_time = time.time()
         self.s3_UpOrDownload_time += (end_time - start_time)
- 
-        # download model from s3 if not local (cold start)
-        if not os.path.exists(self.local_model_path):
-            start_time = time.time()
 
-            while True:
-                with open(self.local_model_path, "wb+") as f:
-                    try:
-                        self.s3_client.download_fileobj(self.s3_bucket_name, 
-                                                        self.s3_model_key, 
-                                                        f, Config = config)
-                        break
-                    except:
-                        pass
-
-            end_time = time.time()
-            self.s3_UpOrDownload_time += (end_time - start_time)
-
-        s1 = time.time()
-        detector = ObjectDetection()
-        detector.setModelTypeAsTinyYOLOv3()
-        detector.setModelPath(self.local_model_path)
-        detector.loadModel()
-        s2 = time.time()
-        cap = s2 - s1
-        # print(f"load model time = {cap:.8f} s")
-    
         output_path = frame_base_path + "/detection_" + str(frame_num) + ".jpg"
 
-        s1 = time.time()
+        # s1 = time.time()
         detection = detector.detectObjectsFromImage(
             input_image = input_frame, 
             output_image_path = output_path, 
             minimum_percentage_probability = detect_prob)
-        s2 = time.time()
-        cap = s2 - s1
-        # print(f"detect obj time = {cap:.8f} s")
+        # s2 = time.time()
+        # cap = s2 - s1
+        # print(f"{self.worker_id} detect obj time = {cap:.8f} s")
          
         if len(detection) > 10 :
+            print("here")
             original_image = Image.open(input_frame, mode = 'r')
             ths = []
             threads = 4
@@ -207,6 +182,29 @@ class classify:
                                      self.local_mdata_path)
         end_time = time.time()
         self.s3_UpOrDownload_time += (end_time - start_time)
+ 
+        # download model from s3 if not local (cold start)
+        config = TransferConfig(use_threads=False)
+        if not os.path.exists(self.local_model_path):
+            start_time = time.time()
+
+            while True:
+                with open(self.local_model_path, "wb+") as f:
+                    try:
+                        self.s3_client.download_fileobj(self.s3_bucket_name, 
+                                                        self.s3_model_key, 
+                                                        f, Config = config)
+                        break
+                    except:
+                        pass
+
+            end_time = time.time()
+            self.s3_UpOrDownload_time += (end_time - start_time)
+
+        detector = ObjectDetection()
+        detector.setModelTypeAsTinyYOLOv3()
+        detector.setModelPath(self.local_model_path)
+        detector.loadModel()
     
         # Extract json file
         with open(self.local_mdata_path, 'r') as file:
@@ -215,20 +213,8 @@ class classify:
         detect_prob = json_data["indeces"][self.worker_id]['detect_prob']
 
         for frame_num in frame_list:
-            self.Detect_object(frame_num, detect_prob)
+            self.Detect_object(frame_num, detect_prob, detector)
 
-        # ths = []
-        # num_threads = len(frame_num)
-        # print(num_threads)
-        # for w in range(num_threads):
-        #     ths.append(Process(target = self.Detect_object, 
-        #                        args = (frame_num[w], detect_prob)))
-    
-        # for t in range(num_threads):
-        #     ths[t].start()
-        # for t in range(num_threads):
-        #     ths[t].join()
-        
         return True
 
 def Run_classify(worker_id, parallel, s3_client, return_dict):
